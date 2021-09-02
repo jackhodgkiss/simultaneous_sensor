@@ -83,8 +83,6 @@ CCFG.ccfgTemplate.$name       = "ti_devices_CCFGTemplate0";
 
 Display1.$name                          = "CONFIG_Display_0";
 Display1.$hardware                      = system.deviceData.board.components.XDS110UART;
-Display1.enableANSI                     = true;
-Display1.uartBufferSize                 = 128;
 Display1.uart.$name                     = "CONFIG_DISPLAY_UART";
 Display1.uart.txPinInstance.outputState = "High";
 Display1.uart.txPinInstance.$name       = "CONFIG_PIN_UART_TX";
