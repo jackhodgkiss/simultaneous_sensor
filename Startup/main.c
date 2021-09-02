@@ -58,7 +58,6 @@
 #include <icall.h>
 #include "hal_assert.h"
 #include "bcomdef.h"
-#include "simple_peripheral.h"
 #ifdef PTM_MODE
 #include "npi_task.h"
 #endif // PTM_MODE
@@ -101,7 +100,7 @@ icall_userCfg_t user0Cfg = BLE_USER_CFG;
 
 extern void AssertHandler(uint8 assertCause, uint8 assertSubcause);
 
-extern Display_Handle dispHandle;
+Display_Handle dispHandle;
 
 /*******************************************************************************
  * @fn          Main
@@ -151,8 +150,6 @@ int main()
   /* Start task for NPI task */
   NPITask_createTask(ICALL_SERVICE_CLASS_BLE);
 #endif // PTM_MODE
-
-  SimplePeripheral_createTask();
 
   /* enable interrupts and start SYS/BIOS */
   BIOS_start();

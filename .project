@@ -32,16 +32,6 @@
 			<locationURI>COM_TI_SIMPLELINK_CC13X2_26X2_SDK_INSTALL_DIR/source/ti/boards/CC26X2R1_LAUNCHXL/Board.html</locationURI>
 		</link>
 		<link>
-			<name>Application/board_key.c</name>
-			<type>1</type>
-			<locationURI>COM_TI_SIMPLELINK_CC13X2_26X2_SDK_INSTALL_DIR/source/ti/ble5stack/common/cc26xx/board_key.c</locationURI>
-		</link>
-		<link>
-			<name>Application/board_key.h</name>
-			<type>1</type>
-			<locationURI>COM_TI_SIMPLELINK_CC13X2_26X2_SDK_INSTALL_DIR/source/ti/ble5stack/common/cc26xx/board_key.h</locationURI>
-		</link>
-		<link>
 			<name>Application/rcosc_calibration.c</name>
 			<type>1</type>
 			<locationURI>COM_TI_SIMPLELINK_CC13X2_26X2_SDK_INSTALL_DIR/source/ti/ble5stack/common/cc26xx/rcosc/rcosc_calibration.c</locationURI>
@@ -50,16 +40,6 @@
 			<name>Application/rcosc_calibration.h</name>
 			<type>1</type>
 			<locationURI>COM_TI_SIMPLELINK_CC13X2_26X2_SDK_INSTALL_DIR/source/ti/ble5stack/common/cc26xx/rcosc/rcosc_calibration.h</locationURI>
-		</link>
-		<link>
-			<name>Application/two_btn_menu.c</name>
-			<type>1</type>
-			<locationURI>COM_TI_SIMPLELINK_CC13X2_26X2_SDK_INSTALL_DIR/source/ti/ble5stack/common/cc26xx/menu/two_btn_menu.c</locationURI>
-		</link>
-		<link>
-			<name>Application/two_btn_menu.h</name>
-			<type>1</type>
-			<locationURI>COM_TI_SIMPLELINK_CC13X2_26X2_SDK_INSTALL_DIR/source/ti/ble5stack/common/cc26xx/menu/two_btn_menu.h</locationURI>
 		</link>
 		<link>
 			<name>Application/util.c</name>
