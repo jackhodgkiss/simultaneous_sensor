@@ -7,10 +7,6 @@
 
 #include <ti/display/Display.h>
 
-#include <stddef.h>
-#include <stdint.h>
-#include <unistd.h>
-
 #define TASK_PRIORITY                     1
 
 #ifndef TASK_STACK_SIZE
@@ -56,9 +52,4 @@ static void task_fn(UArg argument_one, UArg argument_two)
 static void initialise(void)
 {
     display = Display_open(Display_Type_UART, NULL);
-    for (;;)
-    {
-        sleep(1);
-        Display_printf(display, 0, 0, "Hello, World");
-    }
 }
