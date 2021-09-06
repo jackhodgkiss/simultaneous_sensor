@@ -15,6 +15,8 @@
 #include <ti_drivers_config.h>
 #include <ti_ble_config.h>
 
+#include "serial_socket.h"
+
 Display_Handle display_handle = NULL;
 
 #define TASK_PRIORITY                     1
