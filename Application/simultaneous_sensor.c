@@ -166,12 +166,6 @@ static void process_gap_message(gapEventHdr_t *message)
 
             DevInfo_SetParameter(DEVINFO_SYSTEM_ID, DEVINFO_SYSTEM_ID_LEN, system_id);
 
-            #ifndef BEACON_FEATURE
-                advParams1.eventProps = GAP_ADV_PROP_SCANNABLE | GAP_ADV_PROP_LEGACY;
-            #else
-                advParams1.eventProps = GAP_ADV_PROP_LEGACY;
-            #endif
-
             status = GapAdv_create(&advertisement_callback, &advParams1, &advertisement_handle);
             SIMULTANEOUS_SENSOR_ASSERT(status == SUCCESS);
 
