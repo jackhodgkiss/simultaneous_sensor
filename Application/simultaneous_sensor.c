@@ -62,6 +62,13 @@ static uint8 long_range_advertisement_handle;
 
 static GAP_Addr_Modes_t address_mode = DEFAULT_ADDRESS_MODE;
 
+typedef struct
+{
+    uint16_t connection_handle;
+} ConnectionRecord;
+
+static ConnectionRecord connections[MAX_NUM_BLE_CONNS];
+
 static void initialise(void);
 static void task_fn(UArg argument_one, UArg argument_two);
 static void process_stack_message(ICall_Hdr *message);
@@ -70,6 +77,10 @@ static void process_application_message(ApplicationEvent *message);
 static void advertisement_callback(uint32_t event, void *advertisement_buffer, uintptr_t argument);
 static void process_advertisement_event(AdvertisementEventData *event_data);
 static bStatus_t enqueue_message(uint8_t event, void *message_data);
+static uint8_t add_connection(uint16_t connection_handle);
+static uint8_t remove_connection(uint16_t connection_handle);
+static uint8_t get_connection_index(uint16_t connection_handle);
+
 
 void simultaneous_sensor(void)
 {
@@ -199,9 +210,19 @@ static void process_gap_message(gapEventHdr_t *message)
     }
     case GAP_LINK_ESTABLISHED_EVENT:
     {
-        Display_printf(display_handle, 0, 0, "LINK Established");
-        GapAdv_enable(legacy_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX, 0);
-        GapAdv_enable(long_range_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX, 0);
+        gapEstLinkReqEvent_t *packet = (gapEstLinkReqEvent_t *)message;
+        Display_printf(display_handle, 0, 0, "LINK EST EVENT");
+        add_connection(packet->connectionHandle);
+        GapAdv_enable(legacy_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
+        GapAdv_enable(long_range_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
+        break;
+    }
+    case GAP_LINK_TERMINATED_EVENT:
+    {
+        gapTerminateLinkEvent_t *packet = (gapTerminateLinkEvent_t *)message;
+        remove_connection(packet->connectionHandle);
+        GapAdv_enable(legacy_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
+        GapAdv_enable(long_range_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
         break;
     }
     default:
@@ -264,7 +285,7 @@ static void process_advertisement_event(AdvertisementEventData *event_data)
 
 static bStatus_t enqueue_message(uint8_t event, void *message_data)
 {
-    uint8_t success;
+    bStatus_t success;
     ApplicationEvent *message = ICall_malloc(sizeof(ApplicationEvent));
     if(message)
     {
@@ -273,5 +294,45 @@ static bStatus_t enqueue_message(uint8_t event, void *message_data)
         success = Util_enqueueMsg(message_queue_handle, synchronization_handle, (uint8_t*)message);
         return (success) ? SUCCESS : FAILURE;
     }
-    return(bleMemAllocError);
+    return bleMemAllocError;
+}
+
+static bStatus_t add_connection(uint16_t connection_handle)
+{
+    bStatus_t status = bleNoResources;
+    for(uint8_t index = 0; index < MAX_NUM_BLE_CONNS; index++)
+    {
+        if(connections[index].connection_handle == LINKDB_CONNHANDLE_INVALID)
+        {
+            connections[index].connection_handle = connection_handle;
+            linkDBInfo_t link_information;
+            linkDB_GetInfo(connection_handle, &link_information);
+            Display_printf(display_handle, 0, 0, "Acquired link information");
+            Display_printf(display_handle, 0, 0, "Address: %s", Util_convertBdAddr2Str(link_information.addr));
+        }
+    }
+    return status;
+}
+
+static uint8_t remove_connection(uint16_t connection_handle)
+{
+    uint8_t connection_index = get_connection_index(connection_handle);
+
+    if(connection_index != MAX_NUM_BLE_CONNS)
+    {
+        connections[connection_index].connection_handle = LINKDB_CONNHANDLE_INVALID;
+    }
+    return connection_index;
+}
+
+static uint8_t get_connection_index(uint16_t connection_handle)
+{
+    for(uint8_t index = 0; index < MAX_NUM_BLE_CONNS; index++)
+    {
+        if(connections[index].connection_handle == connection_handle)
+        {
+            return index;
+        }
+    }
+    return MAX_NUM_BLE_CONNS;
 }
