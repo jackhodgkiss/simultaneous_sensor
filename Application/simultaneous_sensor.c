@@ -26,6 +26,7 @@ Display_Handle display_handle = NULL;
 #endif
 
 #define ADVERTISEMENT_EVENT 1
+#define CONNECTION_EVENT 2
 
 #define ICALL_EVENT ICALL_MSG_EVENT_ID
 #define QUEUE_EVENT UTIL_QUEUE_EVENT_ID
@@ -56,7 +57,8 @@ typedef struct
     void *buffer;
 } AdvertisementEventData;
 
-static uint8 advertisement_handle;
+static uint8 legacy_advertisement_handle;
+static uint8 long_range_advertisement_handle;
 
 static GAP_Addr_Modes_t address_mode = DEFAULT_ADDRESS_MODE;
 
@@ -66,8 +68,8 @@ static void process_stack_message(ICall_Hdr *message);
 static void process_gap_message(gapEventHdr_t *message);
 static void process_application_message(ApplicationEvent *message);
 static void advertisement_callback(uint32_t event, void *advertisement_buffer, uintptr_t argument);
-static bool process_advertisement_event(AdvertisementEventData *event_data);
-static status_t enqueue_message(uint8_t event, void *message_data);
+static void process_advertisement_event(AdvertisementEventData *event_data);
+static bStatus_t enqueue_message(uint8_t event, void *message_data);
 
 void simultaneous_sensor(void)
 {
@@ -166,21 +168,40 @@ static void process_gap_message(gapEventHdr_t *message)
 
             DevInfo_SetParameter(DEVINFO_SYSTEM_ID, DEVINFO_SYSTEM_ID_LEN, system_id);
 
-            status = GapAdv_create(&advertisement_callback, &advParams1, &advertisement_handle);
+            status = GapAdv_create(&advertisement_callback, &advParams1, &legacy_advertisement_handle);
             SIMULTANEOUS_SENSOR_ASSERT(status == SUCCESS);
 
-            status = GapAdv_loadByHandle(advertisement_handle, GAP_ADV_DATA_TYPE_ADV, sizeof(advData1), advData1);
+            status = GapAdv_loadByHandle(legacy_advertisement_handle, GAP_ADV_DATA_TYPE_ADV, sizeof(advData1), advData1);
             SIMULTANEOUS_SENSOR_ASSERT(status == SUCCESS);
 
-            status = GapAdv_loadByHandle(advertisement_handle, GAP_ADV_DATA_TYPE_SCAN_RSP, sizeof(scanResData1), scanResData1);
+            status = GapAdv_loadByHandle(legacy_advertisement_handle, GAP_ADV_DATA_TYPE_SCAN_RSP, sizeof(scanResData1), scanResData1);
             SIMULTANEOUS_SENSOR_ASSERT(status == SUCCESS);
 
-            status = GapAdv_setEventMask(advertisement_handle, GAP_ADV_EVT_MASK_START_AFTER_ENABLE | GAP_ADV_EVT_MASK_END_AFTER_DISABLE | GAP_ADV_EVT_MASK_SET_TERMINATED);
+            status = GapAdv_setEventMask(legacy_advertisement_handle, GAP_ADV_EVT_MASK_START_AFTER_ENABLE | GAP_ADV_EVT_MASK_END_AFTER_DISABLE | GAP_ADV_EVT_MASK_SET_TERMINATED);
             SIMULTANEOUS_SENSOR_ASSERT(status == SUCCESS);
 
-            status = GapAdv_enable(advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX, 0);
+            status = GapAdv_enable(legacy_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX, 0);
+            SIMULTANEOUS_SENSOR_ASSERT(status == SUCCESS);
+
+            status = GapAdv_create(&advertisement_callback, &advParams2, &long_range_advertisement_handle);
+            SIMULTANEOUS_SENSOR_ASSERT(status == SUCCESS);
+
+            status = GapAdv_loadByHandle(long_range_advertisement_handle, GAP_ADV_DATA_TYPE_ADV, sizeof(advData2), advData2);
+            SIMULTANEOUS_SENSOR_ASSERT(status == SUCCESS);
+
+            status = GapAdv_setEventMask(long_range_advertisement_handle, GAP_ADV_EVT_MASK_START_AFTER_ENABLE | GAP_ADV_EVT_MASK_END_AFTER_DISABLE | GAP_ADV_EVT_MASK_SET_TERMINATED);
+            SIMULTANEOUS_SENSOR_ASSERT(status == SUCCESS);
+
+            status = GapAdv_enable(long_range_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX, 0);
             SIMULTANEOUS_SENSOR_ASSERT(status == SUCCESS);
         }
+        break;
+    }
+    case GAP_LINK_ESTABLISHED_EVENT:
+    {
+        Display_printf(display_handle, 0, 0, "LINK Established");
+        GapAdv_enable(legacy_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX, 0);
+        GapAdv_enable(long_range_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX, 0);
         break;
     }
     default:
@@ -194,18 +215,18 @@ static void process_application_message(ApplicationEvent *message)
     switch(message->event)
     {
     case ADVERTISEMENT_EVENT:
-        safe_to_deallocate = process_advertisement_event((AdvertisementEventData*)(message->data));
+        process_advertisement_event((AdvertisementEventData*)(message->data));
+        break;
+    case CONNECTION_EVENT:
+        Display_printf(display_handle, 0, 0, "Connection Event");
         break;
     default:
         break;
     }
 
-    if(safe_to_deallocate)
+    if((safe_to_deallocate == TRUE) && (message->data != NULL))
     {
-        if(message->data)
-        {
-            ICall_free(message->data);
-        }
+        ICall_free(message->data);
     }
 }
 
@@ -223,23 +244,25 @@ static void advertisement_callback(uint32_t event, void *advertisement_buffer, u
     }
 }
 
-static bool process_advertisement_event(AdvertisementEventData *event_data)
+static void process_advertisement_event(AdvertisementEventData *event_data)
 {
-    bool safe_to_deallocate = TRUE;
     switch(event_data->event)
     {
     case GAP_EVT_ADV_START_AFTER_ENABLE:
+        Display_printf(display_handle, 0, 0, "Advertisement Set %d Enabled", *(uint8_t *)(event_data->buffer));
         break;
-    case GAP_EVT_INSUFFICIENT_MEMORY:
-        safe_to_deallocate = FALSE;
-        break;
+    case GAP_EVT_ADV_END_AFTER_DISABLE:
+        Display_printf(display_handle, 0, 0, "Advertisement Set %d Disabled", *(uint8_t *)(event_data->buffer));
     default:
         break;
     }
-    return(safe_to_deallocate);
+    if(event_data->event != GAP_EVT_INSUFFICIENT_MEMORY)
+    {
+        ICall_free(event_data->buffer);
+    }
 }
 
-static status_t enqueue_message(uint8_t event, void *message_data)
+static bStatus_t enqueue_message(uint8_t event, void *message_data)
 {
     uint8_t success;
     ApplicationEvent *message = ICall_malloc(sizeof(ApplicationEvent));
