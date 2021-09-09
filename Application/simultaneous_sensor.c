@@ -79,6 +79,7 @@ static void process_advertisement_event(AdvertisementEventData *event_data);
 static bStatus_t enqueue_message(uint8_t event, void *message_data);
 static uint8_t add_connection(uint16_t connection_handle);
 static uint8_t remove_connection(uint16_t connection_handle);
+static bStatus_t clear_connections(uint16_t connection_handle);
 static uint8_t get_connection_index(uint16_t connection_handle);
 
 
@@ -101,6 +102,7 @@ static void initialise(void)
     message_queue_handle = Util_constructQueue(&message_queue);
     GAP_RegisterForMsgs(self);
     GAP_DeviceInit(GAP_PROFILE_PERIPHERAL, self, address_mode, &pRandomAddress);
+    clear_connections(LINKDB_CONNHANDLE_ALL);
 }
 
 static void task_fn(UArg argument_one, UArg argument_two)
@@ -211,7 +213,6 @@ static void process_gap_message(gapEventHdr_t *message)
     case GAP_LINK_ESTABLISHED_EVENT:
     {
         gapEstLinkReqEvent_t *packet = (gapEstLinkReqEvent_t *)message;
-        Display_printf(display_handle, 0, 0, "LINK EST EVENT");
         add_connection(packet->connectionHandle);
         GapAdv_enable(legacy_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
         GapAdv_enable(long_range_advertisement_handle, GAP_ADV_ENABLE_OPTIONS_USE_MAX , 0);
@@ -239,7 +240,6 @@ static void process_application_message(ApplicationEvent *message)
         process_advertisement_event((AdvertisementEventData*)(message->data));
         break;
     case CONNECTION_EVENT:
-        Display_printf(display_handle, 0, 0, "Connection Event");
         break;
     default:
         break;
@@ -305,10 +305,7 @@ static bStatus_t add_connection(uint16_t connection_handle)
         if(connections[index].connection_handle == LINKDB_CONNHANDLE_INVALID)
         {
             connections[index].connection_handle = connection_handle;
-            linkDBInfo_t link_information;
-            linkDB_GetInfo(connection_handle, &link_information);
-            Display_printf(display_handle, 0, 0, "Acquired link information");
-            Display_printf(display_handle, 0, 0, "Address: %s", Util_convertBdAddr2Str(link_information.addr));
+            break;
         }
     }
     return status;
@@ -323,6 +320,18 @@ static uint8_t remove_connection(uint16_t connection_handle)
         connections[connection_index].connection_handle = LINKDB_CONNHANDLE_INVALID;
     }
     return connection_index;
+}
+
+static bStatus_t clear_connections(uint16_t connection_handle)
+{
+    if(connection_handle == LINKDB_CONNHANDLE_ALL)
+    {
+        for(int index = 0; index < MAX_NUM_BLE_CONNS; index++)
+        {
+            connections[index].connection_handle = LINKDB_CONNHANDLE_INVALID;
+        }
+    }
+    return SUCCESS;
 }
 
 static uint8_t get_connection_index(uint16_t connection_handle)
