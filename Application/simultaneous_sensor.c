@@ -100,6 +100,9 @@ static void initialise(void)
     display_handle = Display_open(Display_Type_UART, NULL);
     ICall_registerApp(&self, &synchronization_handle);
     message_queue_handle = Util_constructQueue(&message_queue);
+    GGS_SetParameter(GGS_DEVICE_NAME_ATT, GAP_DEVICE_NAME_LEN, attDeviceName);
+    GAP_SetParamValue(GAP_PARAM_LINK_UPDATE_DECISION, GAP_UPDATE_REQ_ACCEPT_ALL);
+    DevInfo_AddService();
     GAP_RegisterForMsgs(self);
     GAP_DeviceInit(GAP_PROFILE_PERIPHERAL, self, address_mode, &pRandomAddress);
     clear_connections(LINKDB_CONNHANDLE_ALL);
