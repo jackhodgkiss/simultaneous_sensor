@@ -33,6 +33,8 @@ Display_Handle display_handle = NULL;
 
 #define ALL_EVENTS (ICALL_EVENT | QUEUE_EVENT)
 
+#define MIN_HEAP_HEADROOM 4000
+
 #define SIMULTANEOUS_SENSOR_ASSERT(expression) if (!(expression)) HAL_ASSERT_SPINLOCK;
 
 static ICall_EntityID self;
@@ -56,6 +58,13 @@ typedef struct
     uint32_t event;
     void *buffer;
 } AdvertisementEventData;
+
+typedef enum
+{
+    NOT_REGISTER = 0,
+    FOR_ATT_RSP = 1,
+    FOR_STREAM = 2
+} ConnectionEventReason;
 
 static uint8 legacy_advertisement_handle;
 static uint8 long_range_advertisement_handle;
@@ -81,6 +90,15 @@ static uint8_t add_connection(uint16_t connection_handle);
 static uint8_t remove_connection(uint16_t connection_handle);
 static bStatus_t clear_connections(uint16_t connection_handle);
 static uint8_t get_connection_index(uint16_t connection_handle);
+static void characteristic_callback(uint16_t value);
+static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, uint8_t *value);
+static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason);
+
+static SerialSocketCallbacks serial_socket_callbacks =
+{
+ .characteristic_callback = characteristic_callback,
+ .incoming_data_callback = incoming_data_callback,
+};
 
 
 void simultaneous_sensor(void)
@@ -102,8 +120,17 @@ static void initialise(void)
     message_queue_handle = Util_constructQueue(&message_queue);
     GGS_SetParameter(GGS_DEVICE_NAME_ATT, GAP_DEVICE_NAME_LEN, attDeviceName);
     GAP_SetParamValue(GAP_PARAM_LINK_UPDATE_DECISION, GAP_UPDATE_REQ_ACCEPT_ALL);
+    GGS_AddService(GATT_ALL_SERVICES);
+    GATTServApp_AddService(GATT_ALL_SERVICES);
     DevInfo_AddService();
+    serial_socket_add_service(GATT_ALL_SERVICES);
+    serial_socket_register_callbacks(&serial_socket_callbacks);
+    serial_socket_set_limit(MIN_HEAP_HEADROOM);
+    register_connection_event(FOR_STREAM);
     GAP_RegisterForMsgs(self);
+    GATT_RegisterForMsgs(self);
+    HCI_LE_WriteSuggestedDefaultDataLenCmd(251, 2120);
+    GATT_InitClient();
     GAP_DeviceInit(GAP_PROFILE_PERIPHERAL, self, address_mode, &pRandomAddress);
     clear_connections(LINKDB_CONNHANDLE_ALL);
 }
@@ -347,4 +374,19 @@ static uint8_t get_connection_index(uint16_t connection_handle)
         }
     }
     return MAX_NUM_BLE_CONNS;
+}
+
+static void characteristic_callback(uint16_t value)
+{
+
+}
+
+static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, uint8_t *value)
+{
+
+}
+
+static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason)
+{
+    return SUCCESS;
 }
