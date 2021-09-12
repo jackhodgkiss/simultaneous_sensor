@@ -383,7 +383,7 @@ static void characteristic_callback(uint16_t value)
 
 static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, uint8_t *value)
 {
-
+    Display_printf(display_handle, 0, 0, "%s", value);
 }
 
 static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason)
