@@ -83,16 +83,20 @@ static void task_fn(UArg argument_one, UArg argument_two);
 static void process_stack_message(ICall_Hdr *message);
 static void process_gap_message(gapEventHdr_t *message);
 static void process_application_message(ApplicationEvent *message);
-static void advertisement_callback(uint32_t event, void *advertisement_buffer, uintptr_t argument);
+static void process_connection_event(Gap_ConnEventRpt_t *report);
+static void process_command_event(hciEvt_CmdComplete_t *message);
 static void process_advertisement_event(AdvertisementEventData *event_data);
 static bStatus_t enqueue_message(uint8_t event, void *message_data);
 static uint8_t add_connection(uint16_t connection_handle);
 static uint8_t remove_connection(uint16_t connection_handle);
 static bStatus_t clear_connections(uint16_t connection_handle);
 static uint8_t get_connection_index(uint16_t connection_handle);
+static void advertisement_callback(uint32_t event, void *advertisement_buffer, uintptr_t argument);
+static void connection_event_callback(Gap_ConnEventRpt_t *report);
 static void characteristic_callback(uint16_t value);
 static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, uint8_t *value);
 static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason);
+
 
 static SerialSocketCallbacks serial_socket_callbacks =
 {
@@ -182,6 +186,17 @@ static void process_stack_message(ICall_Hdr *message)
     case GAP_MSG_EVENT:
         process_gap_message((gapEventHdr_t*) message);
         break;
+    case HCI_GAP_EVENT_EVENT:
+    {
+        switch(message->status)
+        {
+        case HCI_COMMAND_COMPLETE_EVENT_CODE:
+        {
+            process_command_event((hciEvt_CmdComplete_t*) message);
+            break;
+        }
+        }
+    }
     default:
         break;
     }
@@ -270,6 +285,7 @@ static void process_application_message(ApplicationEvent *message)
         process_advertisement_event((AdvertisementEventData*)(message->data));
         break;
     case CONNECTION_EVENT:
+        process_connection_event((Gap_ConnEventRpt_t *)(message->data));
         break;
     default:
         break;
@@ -281,17 +297,25 @@ static void process_application_message(ApplicationEvent *message)
     }
 }
 
-static void advertisement_callback(uint32_t event, void *advertisement_buffer, uintptr_t argument)
+static void process_connection_event(Gap_ConnEventRpt_t *report)
 {
-    AdvertisementEventData *data = ICall_malloc(sizeof(AdvertisementEventData));
-    if(data)
+    uint8_t connection_index = get_connection_index(report->handle);
+    if(connection_index < MAX_NUM_BLE_CONNS)
     {
-        data->event = event;
-        data->buffer = advertisement_buffer;
-        if(enqueue_message(ADVERTISEMENT_EVENT, data) != SUCCESS)
-        {
-            ICall_free(data);
-        }
+        HCI_ReadRssiCmd(report->handle);
+    }
+}
+
+static void process_command_event(hciEvt_CmdComplete_t *message)
+{
+    switch(message->cmdOpcode)
+    {
+    case HCI_READ_RSSI:
+    {
+        int8 rssi = (int8)message->pReturnParam[3];
+        Display_printf(display_handle, 0, 0, "%d", rssi);
+        break;
+    }
     }
 }
 
@@ -327,6 +351,7 @@ static bStatus_t enqueue_message(uint8_t event, void *message_data)
     return bleMemAllocError;
 }
 
+
 static bStatus_t add_connection(uint16_t connection_handle)
 {
     bStatus_t status = bleNoResources;
@@ -335,6 +360,7 @@ static bStatus_t add_connection(uint16_t connection_handle)
         if(connections[index].connection_handle == LINKDB_CONNHANDLE_INVALID)
         {
             connections[index].connection_handle = connection_handle;
+            Gap_RegisterConnEventCb(connection_event_callback, GAP_CB_REGISTER, connection_handle);
             break;
         }
     }
@@ -348,6 +374,7 @@ static uint8_t remove_connection(uint16_t connection_handle)
     if(connection_index != MAX_NUM_BLE_CONNS)
     {
         connections[connection_index].connection_handle = LINKDB_CONNHANDLE_INVALID;
+        Gap_RegisterConnEventCb(NULL, GAP_CB_UNREGISTER, connection_handle);
     }
     return connection_index;
 }
@@ -374,6 +401,29 @@ static uint8_t get_connection_index(uint16_t connection_handle)
         }
     }
     return MAX_NUM_BLE_CONNS;
+}
+
+static void advertisement_callback(uint32_t event, void *advertisement_buffer, uintptr_t argument)
+{
+    AdvertisementEventData *data = ICall_malloc(sizeof(AdvertisementEventData));
+    if(data)
+    {
+        data->event = event;
+        data->buffer = advertisement_buffer;
+        if(enqueue_message(ADVERTISEMENT_EVENT, data) != SUCCESS)
+        {
+            ICall_free(data);
+        }
+    }
+}
+
+
+static void connection_event_callback(Gap_ConnEventRpt_t *report)
+{
+    if(enqueue_message(CONNECTION_EVENT, report) != SUCCESS)
+    {
+        ICall_free(report);
+    }
 }
 
 static void characteristic_callback(uint16_t value)
