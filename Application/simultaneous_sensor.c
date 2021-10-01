@@ -28,6 +28,7 @@ Display_Handle display_handle = NULL;
 #define ADVERTISEMENT_EVENT 1
 #define CONNECTION_EVENT 2
 #define REQUEST_RSSI_EVENT 3
+#define TRANSMIT_DATA_EVENT 4
 
 #define ICALL_EVENT ICALL_MSG_EVENT_ID
 #define QUEUE_EVENT UTIL_QUEUE_EVENT_ID
@@ -287,6 +288,9 @@ static void process_application_message(ApplicationEvent *message)
     case REQUEST_RSSI_EVENT:
         HCI_ReadRssiCmd((uint16_t *)message->data);
         break;
+    case TRANSMIT_DATA_EVENT:
+        char* data[5] = {'H', 'E', 'L', 'L', 'O'};
+        serial_socket_send_data((uint16_t)message->data, data, 5);
     default:
         break;
     }
@@ -413,6 +417,7 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
     uint8_t connection_index = get_connection_index(connection_handle);
     Display_printf(display_handle, 0, 0, "(%d, %d): %s", connection_index, connection_handle, value);
     enqueue_message(REQUEST_RSSI_EVENT, (void *)connection_handle);
+    enqueue_message(TRANSMIT_DATA_EVENT, (void *)connection_handle);
 }
 
 static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason)
