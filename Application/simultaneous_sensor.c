@@ -412,7 +412,7 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
 {
     uint8_t connection_index = get_connection_index(connection_handle);
     Display_printf(display_handle, 0, 0, "(%d, %d): %s", connection_index, connection_handle, value);
-    enqueue_message(REQUEST_RSSI_EVENT, connection_handle);
+    enqueue_message(REQUEST_RSSI_EVENT, (void *)connection_handle);
 }
 
 static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason)
