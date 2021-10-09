@@ -289,8 +289,8 @@ static void process_application_message(ApplicationEvent *message)
         HCI_ReadRssiCmd((uint16_t *)message->data);
         break;
     case TRANSMIT_DATA_EVENT: {
-        uint8_t payload[6] = { 83, 101, 110, 115, 111, 114 };
-        serial_socket_send_data((uint16_t)message->data, &payload, 6);
+        uint8_t payload[7] = { 147, 247, 94, 164, 66, 181, 230 };
+        serial_socket_send_data((uint16_t)message->data, &payload, 7);
         break;
     }
 
