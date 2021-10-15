@@ -17,6 +17,8 @@
 
 #include "serial_socket.h"
 
+#include <stdio.h>
+
 Display_Handle display_handle = NULL;
 
 #define TASK_PRIORITY                     1
@@ -413,10 +415,12 @@ static void advertisement_callback(uint32_t event, void *advertisement_buffer, u
 
 static void characteristic_callback(uint16_t value) { }
 
-static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, uint8_t *value)
+static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, unsigned char *value)
 {
     uint8_t connection_index = get_connection_index(connection_handle);
-    Display_printf(display_handle, 0, 0, "(%d, %d): %s", connection_index, connection_handle, value);
+    unsigned int packets_remaining;
+    sscanf(value, "%d", &packets_remaining);
+    Display_printf(display_handle, 0, 0, "(%d, %d): %d", connection_index, connection_handle, packets_remaining);
     enqueue_message(REQUEST_RSSI_EVENT, (void *)connection_handle);
     enqueue_message(TRANSMIT_DATA_EVENT, (void *)connection_handle);
 }
