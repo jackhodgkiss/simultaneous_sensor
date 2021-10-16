@@ -31,6 +31,7 @@ Display_Handle display_handle = NULL;
 #define CONNECTION_EVENT 2
 #define REQUEST_RSSI_EVENT 3
 #define TRANSMIT_DATA_EVENT 4
+#define PERIODIC_EVENT 5
 
 #define ICALL_EVENT ICALL_MSG_EVENT_ID
 #define QUEUE_EVENT UTIL_QUEUE_EVENT_ID
@@ -50,6 +51,21 @@ static Queue_Handle message_queue_handle;
 Task_Struct task;
 
 uint8_t task_stack[TASK_STACK_SIZE];
+
+typedef struct
+{
+    uint8_t event;
+    uint8_t data[];
+} ClockEventData;
+
+static Clock_Struct periodic_clock;
+
+ClockEventData periodic_event_data =
+{
+ .event = PERIODIC_EVENT
+};
+
+#define PERIODIC_EVENT_PERIOD 5000
 
 typedef struct
 {
@@ -98,6 +114,7 @@ static void advertisement_callback(uint32_t event, void *advertisement_buffer, u
 static void characteristic_callback(uint16_t value);
 static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, uint8_t *value);
 static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason);
+static void periodic_callback(UArg argument);
 
 static SerialSocketCallbacks serial_socket_callbacks =
 {
@@ -138,6 +155,10 @@ static void initialise(void)
     GATT_InitClient();
     GAP_DeviceInit(GAP_PROFILE_PERIPHERAL, self, address_mode, &pRandomAddress);
     clear_connections(LINKDB_CONNHANDLE_ALL);
+    Util_constructClock(&periodic_clock, periodic_callback,
+                        PERIODIC_EVENT_PERIOD, 0, false,
+                        (UArg) &periodic_event_data);
+    Util_startClock(&periodic_clock);
 }
 
 static void task_fn(UArg argument_one, UArg argument_two)
@@ -293,7 +314,9 @@ static void process_application_message(ApplicationEvent *message)
     case TRANSMIT_DATA_EVENT: {
         break;
     }
-
+    case PERIODIC_EVENT: {
+        Display_printf(display_handle, 0, 0, "PERIODIC MESSAGE");
+    }
     default:
         break;
     }
@@ -428,4 +451,14 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
 static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason)
 {
     return SUCCESS;
+}
+
+static void periodic_callback(UArg argument)
+{
+    ClockEventData *data = (ClockEventData *) argument;
+    if(data->event == PERIODIC_EVENT)
+    {
+        Util_startClock(&periodic_clock);
+        enqueue_message(PERIODIC_EVENT, NULL);
+    }
 }
