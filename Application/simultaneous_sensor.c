@@ -31,7 +31,7 @@ Display_Handle display_handle = NULL;
 #define CONNECTION_EVENT 2
 #define REQUEST_RSSI_EVENT 3
 #define TRANSMIT_DATA_EVENT 4
-#define PERIODIC_EVENT 5
+#define EXPERIMENT_CLOCK_EVENT 5
 
 #define ICALL_EVENT ICALL_MSG_EVENT_ID
 #define QUEUE_EVENT UTIL_QUEUE_EVENT_ID
@@ -58,14 +58,22 @@ typedef struct
     uint8_t data[];
 } ClockEventData;
 
-static Clock_Struct periodic_clock;
-
-ClockEventData periodic_event_data =
+typedef enum
 {
- .event = PERIODIC_EVENT
+    RECEPTION_END_ACTIVE = 0,
+    RECEPTION_END_INACTIVE = 1,
+    TRANSMISSION_PROBE_ACTIVE = 2,
+    TRANSMISSION_PROBE_INACTIVE = 3
+} ClockState;
+
+static Clock_Struct experiment_clock;
+
+ClockEventData experiment_clock_event_data =
+{
+ .event = EXPERIMENT_CLOCK_EVENT
 };
 
-#define PERIODIC_EVENT_PERIOD 5000
+static ClockState current_clock_state = RECEPTION_END_INACTIVE;
 
 typedef struct
 {
@@ -114,7 +122,7 @@ static void advertisement_callback(uint32_t event, void *advertisement_buffer, u
 static void characteristic_callback(uint16_t value);
 static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, uint8_t *value);
 static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason);
-static void periodic_callback(UArg argument);
+static void experiment_clock_callback(UArg argument);
 
 static SerialSocketCallbacks serial_socket_callbacks =
 {
@@ -155,10 +163,8 @@ static void initialise(void)
     GATT_InitClient();
     GAP_DeviceInit(GAP_PROFILE_PERIPHERAL, self, address_mode, &pRandomAddress);
     clear_connections(LINKDB_CONNHANDLE_ALL);
-    Util_constructClock(&periodic_clock, periodic_callback,
-                        PERIODIC_EVENT_PERIOD, 0, false,
-                        (UArg) &periodic_event_data);
-    Util_startClock(&periodic_clock);
+    Util_constructClock(&experiment_clock, experiment_clock_callback, 0, 0,
+                        false, (UArg) &experiment_clock_event_data);
 }
 
 static void task_fn(UArg argument_one, UArg argument_two)
@@ -314,7 +320,7 @@ static void process_application_message(ApplicationEvent *message)
     case TRANSMIT_DATA_EVENT: {
         break;
     }
-    case PERIODIC_EVENT: {
+    case EXPERIMENT_CLOCK_EVENT: {
         Display_printf(display_handle, 0, 0, "PERIODIC MESSAGE");
     }
     default:
@@ -440,10 +446,15 @@ static void characteristic_callback(uint16_t value) { }
 
 static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, unsigned char *value)
 {
-    uint8_t connection_index = get_connection_index(connection_handle);
-    unsigned int packets_remaining;
-    sscanf(value, "%d", &packets_remaining);
-    Display_printf(display_handle, 0, 0, "(%d, %d): %d", connection_index, connection_handle, packets_remaining);
+    if(current_clock_state == RECEPTION_END_INACTIVE)
+    {
+        unsigned int packets_remaining;
+        sscanf(value, "%d", &packets_remaining);
+        uint32_t period = (packets_remaining * 10) + 10;
+        Util_restartClock(&experiment_clock, period);
+        Util_startClock(&experiment_clock);
+        current_clock_state = RECEPTION_END_ACTIVE;
+    }
     enqueue_message(REQUEST_RSSI_EVENT, (void *)connection_handle);
     enqueue_message(TRANSMIT_DATA_EVENT, (void *)connection_handle);
 }
@@ -453,12 +464,34 @@ static bStatus_t register_connection_event(ConnectionEventReason connection_even
     return SUCCESS;
 }
 
-static void periodic_callback(UArg argument)
+static void experiment_clock_callback(UArg argument)
 {
     ClockEventData *data = (ClockEventData *) argument;
-    if(data->event == PERIODIC_EVENT)
+    if(data->event == EXPERIMENT_CLOCK_EVENT)
     {
-        Util_startClock(&periodic_clock);
-        enqueue_message(PERIODIC_EVENT, NULL);
+        switch (current_clock_state)
+        {
+        case RECEPTION_END_ACTIVE:
+        {
+            Display_printf(display_handle, 0, 0, "RECEPTION_END_ACTIVE");
+            break;
+        }
+        case RECEPTION_END_INACTIVE:
+        {
+            break;
+        }
+        case TRANSMISSION_PROBE_ACTIVE:
+        {
+            break;
+        }
+        case TRANSMISSION_PROBE_INACTIVE:
+        {
+            break;
+        }
+        default:
+        {
+            break;
+        }
+        }
     }
 }
