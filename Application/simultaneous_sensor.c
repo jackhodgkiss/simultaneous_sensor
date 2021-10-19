@@ -60,11 +60,11 @@ typedef struct
 
 typedef enum
 {
-    RECEPTION_END_ACTIVE = 0,
-    RECEPTION_END_INACTIVE = 1,
-    TRANSMISSION_PROBE_ACTIVE = 2,
-    TRANSMISSION_PROBE_INACTIVE = 3
-} ClockState;
+    WAITING = 0,
+    RECEIVING = 1,
+    TRANSMITTING = 2,
+    FINISHED = 3
+} ExperimentState;
 
 static Clock_Struct experiment_clock;
 
@@ -73,7 +73,7 @@ ClockEventData experiment_clock_event_data =
  .event = EXPERIMENT_CLOCK_EVENT
 };
 
-static ClockState current_clock_state = RECEPTION_END_INACTIVE;
+static ExperimentState experiment_state = WAITING;
 
 typedef struct
 {
@@ -446,14 +446,14 @@ static void characteristic_callback(uint16_t value) { }
 
 static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, unsigned char *value)
 {
-    if(current_clock_state == RECEPTION_END_INACTIVE)
+    if(experiment_state == WAITING)
     {
         unsigned int packets_remaining;
         sscanf(value, "%d", &packets_remaining);
         uint32_t period = (packets_remaining * 10) + 10;
         Util_restartClock(&experiment_clock, period);
         Util_startClock(&experiment_clock);
-        current_clock_state = RECEPTION_END_ACTIVE;
+        experiment_state = RECEIVING;
     }
     enqueue_message(REQUEST_RSSI_EVENT, (void *)connection_handle);
     enqueue_message(TRANSMIT_DATA_EVENT, (void *)connection_handle);
@@ -469,26 +469,22 @@ static void experiment_clock_callback(UArg argument)
     ClockEventData *data = (ClockEventData *) argument;
     if(data->event == EXPERIMENT_CLOCK_EVENT)
     {
-        switch (current_clock_state)
+        switch (experiment_state)
         {
-        case RECEPTION_END_ACTIVE:
-        {
-            Display_printf(display_handle, 0, 0, "RECEPTION_END_ACTIVE");
-            break;
-        }
-        case RECEPTION_END_INACTIVE:
+        case WAITING:
         {
             break;
         }
-        case TRANSMISSION_PROBE_ACTIVE:
+        case RECEIVING:
+        {
+            Display_printf(display_handle, 0, 0, "RECEIVED ALL PACKETS!");
+            break;
+        }
+        case TRANSMITTING:
         {
             break;
         }
-        case TRANSMISSION_PROBE_INACTIVE:
-        {
-            break;
-        }
-        default:
+        case FINISHED:
         {
             break;
         }
