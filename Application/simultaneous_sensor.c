@@ -322,6 +322,8 @@ static void process_application_message(ApplicationEvent *message)
         HCI_ReadRssiCmd((uint16_t *)message->data);
         break;
     case TRANSMIT_DATA_EVENT: {
+        uint8_t payload[7] = { packets_remaining };
+        serial_socket_send_data((uint16_t)message->data, &payload, 1);
         break;
     }
     case EXPERIMENT_CLOCK_EVENT:
@@ -344,7 +346,9 @@ static void process_application_message(ApplicationEvent *message)
         {
             if(--packets_remaining >= 0)
             {
+                uint16_t connection_handle = (uint16_t) message->data;
                 Display_printf(display_handle, 0, 0, "Transmitting...");
+                enqueue_message(TRANSMIT_DATA_EVENT, (void *) connection_handle);
                 Util_restartClock((Clock_Struct *) experiment_clock_handle, 10);
             }
             else
@@ -488,8 +492,14 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
         unsigned int packets_remaining;
         sscanf(value, "%d", &packets_remaining);
         uint32_t period = (packets_remaining * 10) + 10;
+        experiment_clock.f6 = (UArg) connection_handle;
         Util_restartClock((Clock_Struct *) experiment_clock_handle, period);
+        enqueue_message(REQUEST_RSSI_EVENT, (void *) connection_handle);
         experiment_state = RECEIVING;
+    }
+    else if(experiment_state == RECEIVING)
+    {
+        enqueue_message(REQUEST_RSSI_EVENT, (void *) connection_handle);
     }
 }
 
@@ -500,5 +510,5 @@ static bStatus_t register_connection_event(ConnectionEventReason connection_even
 
 static void experiment_clock_callback(UArg argument)
 {
-    enqueue_message(EXPERIMENT_CLOCK_EVENT, NULL);
+    enqueue_message(EXPERIMENT_CLOCK_EVENT, (void *) argument);
 }
