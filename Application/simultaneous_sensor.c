@@ -67,6 +67,7 @@ typedef enum
 } ExperimentState;
 
 static Clock_Struct experiment_clock;
+static Clock_Handle experiment_clock_handle;
 
 ClockEventData experiment_clock_event_data =
 {
@@ -74,6 +75,9 @@ ClockEventData experiment_clock_event_data =
 };
 
 static ExperimentState experiment_state = WAITING;
+
+#define MAX_PACKETS 10
+static short packets_remaining = MAX_PACKETS;
 
 typedef struct
 {
@@ -163,7 +167,7 @@ static void initialise(void)
     GATT_InitClient();
     GAP_DeviceInit(GAP_PROFILE_PERIPHERAL, self, address_mode, &pRandomAddress);
     clear_connections(LINKDB_CONNHANDLE_ALL);
-    Util_constructClock(&experiment_clock, experiment_clock_callback, 0, 0,
+    experiment_clock_handle = Util_constructClock(&experiment_clock, experiment_clock_callback, 0, 0,
                         false, (UArg) &experiment_clock_event_data);
 }
 
@@ -320,8 +324,41 @@ static void process_application_message(ApplicationEvent *message)
     case TRANSMIT_DATA_EVENT: {
         break;
     }
-    case EXPERIMENT_CLOCK_EVENT: {
-        Display_printf(display_handle, 0, 0, "PERIODIC MESSAGE");
+    case EXPERIMENT_CLOCK_EVENT:
+    {
+        switch (experiment_state)
+        {
+        case WAITING:
+        {
+            break;
+        }
+        case RECEIVING:
+        {
+            Display_printf(display_handle, 0, 0, "Finished Receiving Packets!");
+            experiment_state = TRANSMITTING;
+            packets_remaining = MAX_PACKETS;
+            Util_restartClock((Clock_Struct *) experiment_clock_handle, 10);
+            break;
+        }
+        case TRANSMITTING:
+        {
+            if(--packets_remaining >= 0)
+            {
+                Display_printf(display_handle, 0, 0, "Transmitting...");
+                Util_restartClock((Clock_Struct *) experiment_clock_handle, 10);
+            }
+            else
+            {
+                experiment_state = WAITING;
+            }
+            break;
+        }
+        case FINISHED:
+        {
+            break;
+        }
+        }
+        break;
     }
     default:
         break;
@@ -451,12 +488,9 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
         unsigned int packets_remaining;
         sscanf(value, "%d", &packets_remaining);
         uint32_t period = (packets_remaining * 10) + 10;
-        Util_restartClock(&experiment_clock, period);
-        Util_startClock(&experiment_clock);
+        Util_restartClock((Clock_Struct *) experiment_clock_handle, period);
         experiment_state = RECEIVING;
     }
-    enqueue_message(REQUEST_RSSI_EVENT, (void *)connection_handle);
-    enqueue_message(TRANSMIT_DATA_EVENT, (void *)connection_handle);
 }
 
 static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason)
@@ -466,28 +500,5 @@ static bStatus_t register_connection_event(ConnectionEventReason connection_even
 
 static void experiment_clock_callback(UArg argument)
 {
-    ClockEventData *data = (ClockEventData *) argument;
-    if(data->event == EXPERIMENT_CLOCK_EVENT)
-    {
-        switch (experiment_state)
-        {
-        case WAITING:
-        {
-            break;
-        }
-        case RECEIVING:
-        {
-            Display_printf(display_handle, 0, 0, "RECEIVED ALL PACKETS!");
-            break;
-        }
-        case TRANSMITTING:
-        {
-            break;
-        }
-        case FINISHED:
-        {
-            break;
-        }
-        }
-    }
+    enqueue_message(EXPERIMENT_CLOCK_EVENT, NULL);
 }
