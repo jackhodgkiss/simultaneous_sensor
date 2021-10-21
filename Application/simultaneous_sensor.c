@@ -489,13 +489,18 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
 {
     if(experiment_state == WAITING)
     {
-        unsigned int packets_remaining;
-        sscanf(value, "%d", &packets_remaining);
-        uint32_t period = (packets_remaining * 10) + 10;
-        experiment_clock.f6 = (UArg) connection_handle;
-        Util_restartClock((Clock_Struct *) experiment_clock_handle, period);
-        enqueue_message(REQUEST_RSSI_EVENT, (void *) connection_handle);
-        experiment_state = RECEIVING;
+        const char *payload = (const char *) value;
+        char *end_pointer;
+        int packets_remaining = strtol(payload, &end_pointer, 10);
+        if(end_pointer != value)
+        {
+            uint32_t period = (packets_remaining * 10) + 10;
+            experiment_clock.f6 = (UArg) connection_handle;
+            Util_restartClock((Clock_Struct*) experiment_clock_handle, period);
+            enqueue_message(REQUEST_RSSI_EVENT, (void*) connection_handle);
+            experiment_state = RECEIVING;
+        }
+
     }
     else if(experiment_state == RECEIVING)
     {
