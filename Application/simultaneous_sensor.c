@@ -128,6 +128,8 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
 static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason);
 static void experiment_clock_callback(UArg argument);
 
+static unsigned long start_time = 0;
+
 static SerialSocketCallbacks serial_socket_callbacks =
 {
  .characteristic_callback = characteristic_callback,
@@ -163,7 +165,8 @@ static void initialise(void)
     register_connection_event(FOR_STREAM);
     GAP_RegisterForMsgs(self);
     GATT_RegisterForMsgs(self);
-    HCI_LE_WriteSuggestedDefaultDataLenCmd(251, 2120);
+    HCI_LE_WriteSuggestedDefaultDataLenCmd(27, 164);
+    HCI_LE_SetDefaultPhyCmd(HCI_PHY_2_MBPS, HCI_PHY_2_MBPS, HCI_PHY_2_MBPS);
     GATT_InitClient();
     GAP_DeviceInit(GAP_PROFILE_PERIPHERAL, self, address_mode, &pRandomAddress);
     clear_connections(LINKDB_CONNHANDLE_ALL);
@@ -337,9 +340,9 @@ static void process_application_message(ApplicationEvent *message)
         case RECEIVING:
         {
             Display_printf(display_handle, 0, 0, "Finished Receiving Packets!");
-            experiment_state = TRANSMITTING;
-            packets_remaining = MAX_PACKETS;
-            Util_restartClock((Clock_Struct *) experiment_clock_handle, 100);
+            experiment_state = WAITING;
+            //packets_remaining = MAX_PACKETS;
+            //Util_restartClock((Clock_Struct *) experiment_clock_handle, 16);
             break;
         }
         case TRANSMITTING:
@@ -347,12 +350,13 @@ static void process_application_message(ApplicationEvent *message)
             if(--packets_remaining >= 0)
             {
                 uint16_t connection_handle = (uint16_t) message->data;
-                Display_printf(display_handle, 0, 0, "Transmitting...");
+                Display_printf(display_handle, 0, 0, "Transmitting Packet: %d", packets_remaining);
                 enqueue_message(TRANSMIT_DATA_EVENT, (void *) connection_handle);
-                Util_restartClock((Clock_Struct *) experiment_clock_handle, 100);
+                Util_restartClock((Clock_Struct *) experiment_clock_handle, 16);
             }
             else
             {
+                Util_stopClock(&experiment_clock);
                 experiment_state = WAITING;
             }
             break;
@@ -382,6 +386,14 @@ static void process_command_event(hciEvt_CmdComplete_t *message)
     {
         int8 rssi = (int8)message->pReturnParam[3];
         Display_printf(display_handle, 0, 0, "%d", rssi);
+        break;
+    }
+    case HCI_LE_READ_PHY:
+    {
+        if(message->pReturnParam[0] == SUCCESS)
+        {
+            Display_printf(display_handle, 0, 0, "RXPh: %d, TXPh: %d", message->pReturnParam[3], message->pReturnParam[4]);
+        }
         break;
     }
     }
@@ -494,7 +506,8 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
         int packets_remaining = strtol(payload, &end_pointer, 10);
         if(end_pointer != value)
         {
-            uint32_t period = (packets_remaining * 1000) + 10;
+            Display_printf(display_handle, 0, 0, "First of %d", packets_remaining + 1);
+            uint32_t period = (packets_remaining * 20);
             experiment_clock.f6 = (UArg) connection_handle;
             Util_restartClock((Clock_Struct*) experiment_clock_handle, period);
             enqueue_message(REQUEST_RSSI_EVENT, (void*) connection_handle);
