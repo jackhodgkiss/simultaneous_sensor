@@ -339,7 +339,7 @@ static void process_application_message(ApplicationEvent *message)
             Display_printf(display_handle, 0, 0, "Finished Receiving Packets!");
             experiment_state = TRANSMITTING;
             packets_remaining = MAX_PACKETS;
-            Util_restartClock((Clock_Struct *) experiment_clock_handle, 10);
+            Util_restartClock((Clock_Struct *) experiment_clock_handle, 100);
             break;
         }
         case TRANSMITTING:
@@ -349,7 +349,7 @@ static void process_application_message(ApplicationEvent *message)
                 uint16_t connection_handle = (uint16_t) message->data;
                 Display_printf(display_handle, 0, 0, "Transmitting...");
                 enqueue_message(TRANSMIT_DATA_EVENT, (void *) connection_handle);
-                Util_restartClock((Clock_Struct *) experiment_clock_handle, 10);
+                Util_restartClock((Clock_Struct *) experiment_clock_handle, 100);
             }
             else
             {
@@ -494,7 +494,7 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
         int packets_remaining = strtol(payload, &end_pointer, 10);
         if(end_pointer != value)
         {
-            uint32_t period = (packets_remaining * 10) + 10;
+            uint32_t period = (packets_remaining * 1000) + 10;
             experiment_clock.f6 = (UArg) connection_handle;
             Util_restartClock((Clock_Struct*) experiment_clock_handle, period);
             enqueue_message(REQUEST_RSSI_EVENT, (void*) connection_handle);
@@ -505,6 +505,7 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
     else if(experiment_state == RECEIVING)
     {
         enqueue_message(REQUEST_RSSI_EVENT, (void *) connection_handle);
+        Display_printf(display_handle, 0, 0, "Received Packet...");
     }
 }
 
