@@ -76,7 +76,7 @@ ClockEventData experiment_clock_event_data =
 
 static ExperimentState experiment_state = WAITING;
 
-#define MAX_PACKETS 10
+#define MAX_PACKETS 5
 static short packets_remaining = MAX_PACKETS;
 
 typedef struct
@@ -127,8 +127,6 @@ static void characteristic_callback(uint16_t value);
 static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter_id, uint16_t length, uint8_t *value);
 static bStatus_t register_connection_event(ConnectionEventReason connection_event_reason);
 static void experiment_clock_callback(UArg argument);
-
-static unsigned long start_time = 0;
 
 static SerialSocketCallbacks serial_socket_callbacks =
 {
@@ -340,9 +338,9 @@ static void process_application_message(ApplicationEvent *message)
         case RECEIVING:
         {
             Display_printf(display_handle, 0, 0, "Finished Receiving Packets!");
-            experiment_state = WAITING;
-            //packets_remaining = MAX_PACKETS;
-            //Util_restartClock((Clock_Struct *) experiment_clock_handle, 16);
+            experiment_state = TRANSMITTING;
+            packets_remaining = MAX_PACKETS;
+            Util_restartClock((Clock_Struct *) experiment_clock_handle, 1000);
             break;
         }
         case TRANSMITTING:
@@ -352,7 +350,7 @@ static void process_application_message(ApplicationEvent *message)
                 uint16_t connection_handle = (uint16_t) message->data;
                 Display_printf(display_handle, 0, 0, "Transmitting Packet: %d", packets_remaining);
                 enqueue_message(TRANSMIT_DATA_EVENT, (void *) connection_handle);
-                Util_restartClock((Clock_Struct *) experiment_clock_handle, 16);
+                Util_restartClock((Clock_Struct *) experiment_clock_handle, 1000);
             }
             else
             {
@@ -507,7 +505,7 @@ static void incoming_data_callback(uint16_t connection_handle, uint8_t parameter
         if(end_pointer != value)
         {
             Display_printf(display_handle, 0, 0, "First of %d", packets_remaining + 1);
-            uint32_t period = (packets_remaining * 20);
+            uint32_t period = (packets_remaining * 50) + 150;
             experiment_clock.f6 = (UArg) connection_handle;
             Util_restartClock((Clock_Struct*) experiment_clock_handle, period);
             enqueue_message(REQUEST_RSSI_EVENT, (void*) connection_handle);
